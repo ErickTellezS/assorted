@@ -1,0 +1,91 @@
+# USAGE
+# python facial_landmarks.py --shape-predictor shape_predictor_68_face_landmarks.dat --image images/example_01.jpg
+
+# import the necessary packages
+from imutils import face_utils
+import numpy as np
+import argparse
+import imutils
+import dlib
+import cv2
+
+# initialize dlib's face detector (HOG-based) and then create
+# the facial landmark predictor
+detector = dlib.get_frontal_face_detector()
+
+predictor = dlib.shape_predictor('/home/erick/PycharmProjects/Base/INEsIFEs/FotosApp/'
+                                 'helen-dataset.dat')
+
+# load the input image, resize it, and convert it to grayscale
+image = cv2.imread('/home/erick/PycharmProjects/Base/INEsIFEs/FotosApp/photo6.jpg')
+gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+face = []
+
+MODEL_MEAN_VALUES = (78.4263377603, 87.7689143744, 114.895847746)
+age_list = ['(0, 2)', '(4, 6)', '(8, 12)', '(15, 20)', '(25, 32)', '(38, 43)', '(48, 53)', '(60, 100)']
+gender_list = ['Male', 'Female']
+
+# detect faces in the grayscale image
+rects = detector(gray, 1)
+
+
+def initialize_caffe_model():
+    age_net = cv2.dnn.readNetFromCaffe(
+        "age_gender_models/deploy_age.prototxt",
+        "age_gender_models/age_net.caffemodel")
+    gender_net = cv2.dnn.readNetFromCaffe(
+        "age_gender_models/deploy_gender.prototxt",
+        "age_gender_models/gender_net.caffemodel")
+    return age_net, gender_net
+
+
+agenet, gendernet = initialize_caffe_model()
+
+# loop over the face detections
+for (i, rect) in enumerate(rects):
+    # determine the facial landmarks for the face region, then
+    # convert the facial landmark (x, y)-coordinates to a NumPy
+    # array
+    shape = face_utils.shape_to_np(predictor(gray, rect))
+
+    # convert dlib's rectangle to a OpenCV-style bounding box
+    # [i.e., (x, y, w, h)], then draw the face bounding box
+    (x, y, w, h) = face_utils.rect_to_bb(rect)
+    face = image[y:y + h, x:x + w].copy()
+
+    blob = cv2.dnn.blobFromImage(face, 1, (227, 227), MODEL_MEAN_VALUES, swapRB=False)
+
+    # Predict gender
+    gendernet.setInput(blob)
+    gender_preds = gendernet.forward()
+    gender = gender_list[gender_preds[0].argmax()]
+    # Predict age
+    agenet.setInput(blob)
+    age_preds = agenet.forward()
+    age = age_list[age_preds[0].argmax()]
+
+    print(gender, age)
+
+    cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+    # show the face number
+    cv2.putText(image, "Face #{}".format(i + 1), (x - 10, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+    # loop over the (x, y)-coordinates for the facial landmarks
+    # and draw them on the image
+    count = 0
+    for (x, y) in shape:
+        if count == 0 or count == 10 or count == 18 or count == 30 or count == 40 or count == 51 or count == 62 or \
+                count == 73 or count == 84 or count == 96 or count == 101 or count == 129 or count == 130 or \
+                count == 138 or count == 147 or count == 148 or count == 164 or count == 165 or count == 171 or \
+                count == 178:
+            cv2.circle(image, (x, y), 1, (255, 0, 0), 2)
+        else:
+            cv2.circle(image, (x, y), 1, (0, 0, 255), 1)
+        count += 1
+        #cv2.imshow("Output", cv2.resize(image, (0, 0), fx=1, fy=1))
+        #cv2.waitKey()
+# show the output image with the face detections + facial landmarks
+cv2.imshow("Output", cv2.resize(image, (0, 0), fx=1, fy=1))
+cv2.waitKey()
+ 
